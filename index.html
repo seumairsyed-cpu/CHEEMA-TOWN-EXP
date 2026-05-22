@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHEEMA TOWN HOME EXPENSE DASHBOARD</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+body{
+margin:0;
+font-family: 'Segoe UI',sans-serif;
+background: linear-gradient(135deg,#1f4037,#99f2c8);
+color:#fff;
+}
+
+.container{
+max-width:1200px;
+margin:auto;
+padding:15px;
+}
+
+.header{
+text-align:center;
+font-size:28px;
+font-weight:700;
+letter-spacing:1px;
+}
+
+.clock{
+position:absolute;
+top:15px;
+right:20px;
+font-size:14px;
+text-align:right;
+}
+
+.filters{
+display:flex;
+flex-wrap:wrap;
+justify-content:center;
+gap:10px;
+margin-top:20px;
+}
+
+.filters input,.filters select{
+padding:8px;
+border-radius:6px;
+border:none;
+min-width:150px;
+}
+
+.kpi{
+margin-top:20px;
+text-align:center;
+font-size:22px;
+font-weight:700;
+background:linear-gradient(90deg,#ff9966,#ff5e62);
+padding:10px;
+border-radius:8px;
+}
+
+table{
+width:100%;
+margin-top:20px;
+border-collapse:collapse;
+background:#fff;
+color:#000;
+border-radius:8px;
+overflow:hidden;
+}
+
+th{
+background:#1f4037;
+color:#fff;
+padding:10px;
+}
+
+td{
+padding:8px;
+border-bottom:1px solid #ddd;
+text-align:center;
+}
+
+.buttons{
+margin-top:20px;
+text-align:center;
+}
+
+.buttons button{
+padding:10px 15px;
+margin:5px;
+border:none;
+border-radius:6px;
+cursor:pointer;
+font-weight:600;
+}
+
+.enter-btn{background:#ff9966;color:#fff;}
+.refresh-btn{background:#00c6ff;color:#fff;}
+.pdf-btn{background:#11998e;color:#fff;}
+
+@media(max-width:600px){
+.filters{
+flex-direction:column;
+align-items:center;
+}
+.clock{
+position:static;
+margin-top:10px;
+text-align:center;
+}
+}
+</style>
+</head>
+
+<body>
+
+<div id="loginScreen" style="height:100vh;display:flex;justify-content:center;align-items:center;background:linear-gradient(135deg,#1f4037,#99f2c8);">
+<div style="background:white;padding:30px;border-radius:10px;text-align:center;color:black;">
+<h3>Enter Password</h3>
+<input type="password" id="password" placeholder="Enter Password" style="padding:8px;width:200px;"><br><br>
+<button onclick="checkPassword()" style="padding:8px 15px;">Login</button>
+<p id="error" style="color:red;"></p>
+</div>
+</div>
+
+<div id="dashboard" style="display:none;">
+<div class="container">
+<div class="header">CHEEMA TOWN HOME EXPENSE DASHBOARD</div>
+<div class="clock" id="clock"></div>
+
+<div class="filters">
+<input type="date" id="fromDate">
+<input type="date" id="toDate">
+
+<select id="headFilter">
+<option value="">All Heads</option>
+<option>ELECTRICITY BILL</option>
+<option>SUI GAS BILL</option>
+<option>SEWERAGE BILL</option>
+<option>STORM FIBER</option>
+<option>SECURITY BILL</option>
+<option>GROCERY</option>
+<option>PLUMBING</option>
+<option>ELECTRIC WORK</option>
+<option>CAR RELATED</option>
+<option>MISC. HOUSEHOLD</option>
+<option>MISC. EXPENSE</option>
+</select>
+
+<select id="modeFilter">
+<option value="">All Modes</option>
+<option>CASH</option>
+<option>ONLINE</option>
+<option>DEBIT CARD</option>
+</select>
+</div>
+
+<div class="kpi">
+Total Expense: Rs <span id="totalExpense">0</span>
+</div>
+
+<table id="expenseTable">
+<thead>
+<tr>
+<th>HEAD</th>
+<th>DESCRIPTION</th>
+<th>AMOUNT</th>
+<th>MODE</th>
+<th>DATE</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<div class="buttons">
+<button class="enter-btn" onclick="window.open('https://forms.gle/YjMdFibR4SbGKM2U6','_blank')">Enter Expense Now</button>
+<button class="refresh-btn" onclick="fetchData()">Refresh Data</button>
+<button class="pdf-btn" onclick="exportPDF()">Export to PDF</button>
+</div>
+
+</div>
+</div>
+
+<script>
+
+const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQQAdahwJAJ6Z21Ss-pg2gDEsr4ecPR5J7Z3uDVJJjwsgKeLqu74VpZzp9qv7x80Vx3oSZOdm4wsZE8/pub?output=csv";
+
+let allData=[];
+
+function checkPassword(){
+let pass=document.getElementById("password").value;
+if(pass==="Alnoor1234"){
+document.getElementById("loginScreen").style.display="none";
+document.getElementById("dashboard").style.display="block";
+fetchData();
+}else{
+document.getElementById("error").innerText="Incorrect Password";
+}
+}
+
+function fetchData(){
+fetch(sheetURL)
+.then(res=>res.text())
+.then(csv=>{
+let rows=csv.split("\n").slice(1);
+allData=rows.map(r=>{
+let cols=r.split(",");
+return {
+head:cols[1],
+description:cols[2],
+amount:parseFloat(cols[3])||0,
+mode:cols[4],
+date:cols[5]
+}
+});
+filterData();
+});
+}
+
+function filterData(){
+let from=document.getElementById("fromDate").value;
+let to=document.getElementById("toDate").value;
+let head=document.getElementById("headFilter").value;
+let mode=document.getElementById("modeFilter").value;
+
+let filtered=allData.filter(item=>{
+let itemDate=new Date(item.date);
+let cond=true;
+
+if(from) cond=cond && itemDate>=new Date(from);
+if(to) cond=cond && itemDate<=new Date(to);
+if(head) cond=cond && item.head===head;
+if(mode) cond=cond && item.mode===mode;
+
+return cond;
+});
+
+let tbody=document.querySelector("#expenseTable tbody");
+tbody.innerHTML="";
+let total=0;
+
+filtered.forEach(item=>{
+total+=item.amount;
+tbody.innerHTML+=`
+<tr>
+<td>${item.head}</td>
+<td>${item.description}</td>
+<td>${item.amount.toLocaleString()}</td>
+<td>${item.mode}</td>
+<td>${item.date}</td>
+</tr>`;
+});
+
+document.getElementById("totalExpense").innerText=total.toLocaleString();
+}
+
+document.querySelectorAll("input,select").forEach(el=>{
+el.addEventListener("change",filterData);
+});
+
+function exportPDF(){
+const { jsPDF } = window.jspdf;
+let doc=new jsPDF();
+
+doc.setFontSize(16);
+doc.text("CHEEMA TOWN EXPENSE SHEET",70,15);
+
+let rows=[];
+document.querySelectorAll("#expenseTable tbody tr").forEach(tr=>{
+let row=[];
+tr.querySelectorAll("td").forEach(td=>{
+row.push(td.innerText);
+});
+rows.push(row);
+});
+
+doc.autoTable({
+head:[["HEAD","DESCRIPTION","AMOUNT","MODE","DATE"]],
+body:rows,
+startY:25
+});
+
+doc.text("Total Expense: Rs "+document.getElementById("totalExpense").innerText,14,doc.lastAutoTable.finalY+10);
+
+doc.save("Cheema_Town_Expense_Report.pdf");
+}
+
+function updateClock(){
+let now=new Date();
+let days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+let time=now.toLocaleTimeString();
+let date=("0"+now.getDate()).slice(-2)+"/"+("0"+(now.getMonth()+1)).slice(-2)+"/"+now.getFullYear();
+let day=days[now.getDay()];
+document.getElementById("clock").innerHTML=time+"<br>"+date+" | "+day;
+}
+setInterval(updateClock,1000);
+updateClock();
+
+</script>
+
+</body>
+</html>
